@@ -1,0 +1,148 @@
+---
+title: "Spatialize data"
+author: "Anna Talucci"
+date: "2026-05-13"
+output: html_document
+---
+
+```{r clear environment, include=FALSE}
+rm(list=ls())
+```
+
+# Overview
+
+**PROJECT**
+FCS-FireAlt project
+
+**PURPOSE OF SCRIPT**
+Spatialize FIRE ALT dataset
+
+**INPUTS**
+- Data downloaded from Arctic Data Center https://arcticdata.io/catalog/view/doi%3A10.18739%2FA2RN3092P
+
+**OUTPUTS**
+
+**CRITICAL DETAILS**
+
+**WORKFLOW SUMMARY**
+1. 
+
+
+# Packages
+```{r}
+library(tidyverse)
+library(sf)
+library(mapview)
+```
+
+
+# Data
+
+```{r}
+pair_df = read_csv("../data/fire_alt/FireALTEstimatedPairsBurnedUnburned.csv")
+raw_df = read_csv("../data/fire_alt/FireAltEstimatedRawData.csv")
+```
+
+# View Data
+
+```{r}
+pair_df
+raw_df
+```
+
+# Summarise raw based on pair and lat lon
+
+```{r}
+( alt_df = raw_df %>% 
+  group_by(submitNm, distur, paired, fireYr, year, tsf, tsfClass, permaExtent, lat, lon) %>%
+  summarise(
+    cntryId = paste(unique(cntryId), collapse = ', '),
+    #lastNm = paste(unique(lastNm), collapse = ', '),
+    #lat = mean(lat),
+    #lon = mean(lon),
+    biome = paste(unique(biome), collapse = ', '),
+    #resName = paste(unique(resName), collapse = ', '), 
+    #resBiomeName = paste(unique(resBiomeName), collapse = ', '), 
+    #fireId = paste(unique(fireId), collapse = ', '),
+    #orgDepth = mean(orgDepth),
+    #srfH2O = paste(unique(srfH2O), collapse = ', '),
+    #topoPos = paste(unique(topoPos), collapse = ', '),
+    slope = mean(slope),
+    #vegCvr = paste(unique(vegCvr), collapse = ', '),
+    tsf = paste(unique(tsf), collapse = ', '),
+    tsfClass = paste(unique(tsfClass), collapse = ', '),
+    #estDoy = mean(estDoy),
+    estDepth = mean(estDepth),
+    n = n() ) %>%
+    ungroup()
+)
+```
+
+```{r}
+glimpse(alt_df)
+```
+
+```{r}
+sort(unique(alt_df$fireYr))
+sort(unique(alt_df$year))
+```
+## summary tables
+
+```{r}
+(burned_summary = alt_df %>% 
+  filter(distur == 'burned') %>%
+  group_by(fireYr, year, permaExtent, cntryId, biome) %>%
+  summarize(n = n()) %>%
+  arrange(fireYr)
+)
+  
+```
+
+```{r}
+write_csv(burned_summary, "../outputs/summaries/2026-05-22_FireALT_burned_summary.csv")
+```
+
+```{r}
+(summary = alt_df %>% 
+   filter(distur == "burned") %>%
+  filter(fireYr <= 1985) %>%
+  group_by(fireYr, year, permaExtent, cntryId, biome) %>%
+  summarize(n = n()) %>%
+  arrange(fireYr)
+)
+  
+```
+
+# Create points shapefile
+
+## Function to make points
+
+```{r}
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("lon","lat"), crs = 4326, remove = FALSE)
+}
+```
+
+## Drop Lat Lon NA and convert to shapefile 
+
+```{r}
+( alt_pts = alt_df %>% 
+    df_to_sf() )
+```
+
+# plot
+
+```{r}
+my_colors <- c("#E41A1C", "#377EB8") 
+
+mapview(alt_pts, zcol = "distur", col.regions = my_colors)
+```
+
+
+# Write to shapefile
+
+```{r eval=FALSE, include=FALSE}
+st_write(alt_pts, "../outputs/shapefile/2026-05-13_FireAltPoints.shp", driver="ESRI Shapefile")
+```
+
+
