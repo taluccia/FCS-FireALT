@@ -21,6 +21,7 @@ Spatialize FIRE ALT dataset
 - Data downloaded from Arctic Data Center https://arcticdata.io/catalog/view/doi%3A10.18739%2FA2RN3092P
 
 **OUTPUTS**
+- shapefile for EE
 
 **CRITICAL DETAILS**
 
