@@ -1,0 +1,149 @@
+---
+title: "Field Sites CCE"
+author: "Anna Talucci"
+date: "2026-06-04"
+output: html_document
+---
+
+
+
+
+```{r clear environment, include=FALSE}
+rm(list=ls())
+```
+
+# Overview
+
+**PROJECT**
+FCS-FireAlt project
+
+**PURPOSE OF SCRIPT**
+Spatialize FIRE ALT dataset
+
+**INPUTS**
+- Data downloaded from Arctic Data Center https://arcticdata.io/catalog/view/doi%3A10.18739%2FA2RN3092P
+
+**OUTPUTS**
+- shapefile for EE
+
+**CRITICAL DETAILS**
+
+**WORKFLOW SUMMARY**
+1. 
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(sf)
+library(mapview)
+```
+
+
+# Data
+
+```{r}
+cce = read_csv("../data/walker_mack/CCE_site_Master.csv")
+ak04 = read.delim("../data/walker_mack/342_JFSP_sitedata_2011.txt")
+```
+
+```{r}
+cce
+ak04
+```
+
+```{r}
+unique(ak04$burn)
+```
+
+```{r}
+unique(cce$fire_scar)
+```
+```{r}
+cce %>% distinct(site, latitude_at_0m, longitude_at_0m)
+```
+```{r}
+ak04_1 = ak04 %>% mutate(Lon.W. = Lon.W.*-1) %>% rename(lat = Lat.N., lon = Lon.W.)
+```
+
+
+# Data for Battelle
+
+```{r}
+( cce_access = cce %>% 
+  dplyr::select(fire_scar, site, year, latitude_at_0m, longitude_at_0m) %>%
+  group_by(fire_scar, site) %>%
+  summarise(year = paste(unique(year), collapse = ", "),
+            latitude_at_0m = paste(unique(latitude_at_0m), collapse = ", "),
+            longitude_at_0m = paste(unique(longitude_at_0m), collapse = ", ")) %>%
+  mutate(latitude = str_extract(latitude_at_0m, "^[^,]+"),
+         longitude = str_extract(longitude_at_0m, "^[^,]+")) %>%
+  mutate(access = ifelse(fire_scar %in% c("Aggie Creek", "Hess Creek", "Isom", "Munson Creek", "Nugget Creek"), "Truck", 
+                         ifelse(fire_scar %in% c("Lost Horse", "Haystack"), "Truck & ATVs", "Helocopter"))) %>%
+  dplyr::select(-c(latitude_at_0m, longitude_at_0m, year)) %>%
+  mutate(latitude = as.numeric(latitude),
+         longitude = as.numeric(longitude))
+)
+```
+
+```{r}
+( ak04_access = ak04_1 %>%
+  dplyr::select(burn, site, lat, lon) %>%
+  rename(latitude = lat, longitude = lon, fire_scar = burn) %>%
+    mutate(site = as.character(site)) %>%
+  mutate(access = "truck") )
+```
+```{r}
+( access = bind_rows(cce_access, ak04_access) )
+```
+
+```{r}
+write_csv(access, "../outputs/2026-06-05_Battelle_SiteAccess.csv")
+```
+
+## Function to make points
+
+```{r}
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("longitude_at_0m","latitude_at_0m"), crs = 4326, remove = FALSE)
+}
+```
+
+```{r}
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("lon","lat"), crs = 4326, remove = FALSE)
+}
+```
+
+## Drop Lat Lon NA and convert to shapefile 
+
+```{r}
+( cce_pts = cce %>% 
+    df_to_sf() )
+```
+
+```{r}
+( ak04_pts = ak04_1 %>% 
+    df_to_sf() )
+```
+
+# plot
+
+```{r}
+#my_colors <- c("#E41A1C", "#377EB8") 
+
+mapview(cce_pts, col.regions = "#E41A1C")
+```
+
+
+# Write to shapefile
+
+```{r eval=FALSE, include=FALSE}
+st_write(cce_pts, "../outputs/shapefile/2026-06-04_CCE_Points.shp", driver="ESRI Shapefile")
+```
+
+```{r eval=FALSE, include=FALSE}
+st_write(ak04_pts, "../outputs/shapefile/2026-06-04_AK_JFSP_Points.shp", driver="ESRI Shapefile")
+```
+
