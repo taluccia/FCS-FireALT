@@ -1,0 +1,90 @@
+---
+title: "Sampling cluster Study Area"
+author: "Anna Talucci"
+date: "2026-11-24"
+output: html_document
+---
+
+```{r clear environment, include=FALSE}
+rm(list=ls())
+```
+
+
+# Overview
+
+> **Project:** FCS-FireAlT
+>
+> **Purpose:** Study area clusters
+>
+> **Inputs:** From SpatializeData.Rmd script
+
+>
+> **Output:** shapefile for EE
+>
+> **Status:** 🚧 in progress
+>
+> **Updated:** 2026-11-24
+
+
+---
+title: "Bounding Boxes for Samples"
+author: "Anna Talucci"
+date: "2026-11-23"
+output: html_document
+---
+
+
+```{r}
+if (!require("pacman")) {
+  install.packages("pacman")
+}
+
+pacman::p_load(
+  tidyverse,
+  sf,
+  mapview
+)
+
+```
+
+# Data
+
+```{r}
+alt= st_read("../outputs/shapefile/2026-05-13_FireAltPoints.shp")
+
+```
+
+# View
+
+```{r}
+alt
+```
+
+
+```{r}
+mapview(alt)
+```
+
+
+# Clustered study areas
+
+```{r}
+hulls <- alt |>
+  dplyr::group_by(cntryId) |>
+  dplyr::summarise(geometry = st_union(geometry)) |>
+  st_convex_hull()
+```
+
+
+
+
+```{r}
+
+mapview(hulls)
+```
+
+```{r}
+st_write(hulls, "../outputs/study_area/FCS_FireALT_studyAreaBoxes.shp", driver="ESRI Shapefile")
+```
+
+
