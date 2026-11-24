@@ -38,6 +38,13 @@ Spatialize FIRE ALT dataset
 library(tidyverse)
 library(sf)
 library(mapview)
+library(ggspatial)
+library(prettymapr)
+library(rosm)   # north arrow, scale bar, basemap tiles
+library(cowplot)  
+library(maptiles)    # Esri/topo-style basemap tiles (closer match to your PDF)
+library(tidyterra)   # geom_spatraster_rgb() to plot maptiles output in ggplot
+
 ```
 
 
@@ -80,10 +87,12 @@ ak04_1 = ak04 %>% mutate(Lon.W. = Lon.W.*-1) %>% rename(lat = Lat.N., lon = Lon.
   mutate(latitude = str_extract(latitude_at_0m, "^[^,]+"),
          longitude = str_extract(longitude_at_0m, "^[^,]+")) %>%
   mutate(access = ifelse(fire_scar %in% c("Aggie Creek", "Hess Creek", "Isom", "Munson Creek", "Nugget Creek"), "Truck", 
-                         ifelse(fire_scar %in% c("Lost Horse", "Haystack"), "Truck & ATVs", "Helocopter"))) %>%
+                         ifelse(fire_scar %in% c("Lost Horse", "Haystack"), "Truck & ATVs", "Helicopter"))) %>%
   dplyr::select(-c(latitude_at_0m, longitude_at_0m, year)) %>%
   mutate(latitude = as.numeric(latitude),
-         longitude = as.numeric(longitude))
+         longitude = as.numeric(longitude),
+         network = "CCE") 
+    
 )
 ```
 
@@ -92,49 +101,259 @@ ak04_1 = ak04 %>% mutate(Lon.W. = Lon.W.*-1) %>% rename(lat = Lat.N., lon = Lon.
   dplyr::select(burn, site, lat, lon) %>%
   rename(latitude = lat, longitude = lon, fire_scar = burn) %>%
     mutate(site = as.character(site)) %>%
-  mutate(access = "truck") )
+  mutate(access = "Truck",
+         network = "2004") )
 ```
 ```{r}
 ( access = bind_rows(cce_access, ak04_access) )
 ```
 
+
 ```{r}
-write_csv(access, "../outputs/2026-06-05_Battelle_SiteAccess.csv")
+write_csv(access, "../outputs/2026-07-07_Battelle_SiteAccess.csv")
 ```
 
-## Function to make points
 
 ```{r}
+access %>% 
+  group_by(fire_scar, access) %>%
+  summarize(site_n = n()) %>%
+  arrange(access)
+```
+
+```{r}
+(helo = access %>% filter(access =="Helicopter") )
+```
+
+```{r}
+(truck = access %>% filter(access %in% c("Truck & ATVs", "Truck")) )
+```
+## Function to make points
+
+```{r eval=FALSE, include=FALSE}
 df_to_sf <- function(x){
   st_as_sf(x, coords = c("longitude_at_0m","latitude_at_0m"), crs = 4326, remove = FALSE)
 }
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 df_to_sf <- function(x){
   st_as_sf(x, coords = c("lon","lat"), crs = 4326, remove = FALSE)
 }
 ```
 
+```{r}
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("longitude","latitude"), crs = 4326, remove = FALSE)
+}
+```
 ## Drop Lat Lon NA and convert to shapefile 
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 ( cce_pts = cce %>% 
     df_to_sf() )
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 ( ak04_pts = ak04_1 %>% 
     df_to_sf() )
 ```
+
+```{r}
+( helo_pts = helo %>% 
+    df_to_sf() )
+```
+
+```{r}
+( truck_pts = truck %>% 
+    df_to_sf() )
+```
+
+```{r}
+( access_pts = access %>% 
+    df_to_sf() )
+```
+
+
+
+```{r eval=FALSE, include=FALSE}
+st_write(access_pts, "../outputs/shapefile/NetworkPoints.shp", driver="ESRI Shapefile")
+```
+
+
+# Fairbanks point with buffer
+
+64.8436° N latitude and 147.7231°
+
+
+
+# For illustration (delete once you plug in real data):
+```{r}
+hubs <- st_as_sf(
+  data.frame(
+    name = c("Coldfoot", "Fairbanks", "Delta Junction"),
+    lon  = c(-150.1783, -147.7164, -145.7331),
+    lat  = c(67.2524, 64.8378, 64.0378)
+  ),
+  coords = c("lon", "lat"), crs = 4326
+)
+
+hubs_sf <- st_as_sf(hubs, coords = c("lon", "lat"), crs = 4326)
+
+# Reproject, buffer, reproject back
+hubs_proj <- st_transform(hubs_sf, crs = 3338)
+buffer_dist_m <- 100 * 1609.34
+hubs_buffer_sf <- st_buffer(hubs_proj, dist = buffer_dist_m)
+hubs_buffer_sf_wgs84 <- st_transform(hubs_buffer_sf, crs = 4326)
+
+```
+
+```{r}
+# Fairbanks, AK coordinates
+# Fairbanks, AK coordinates
+df <- data.frame(id = 1, name = "Fairbanks", lon = -147.7164, lat = 64.8378)
+point_sf <- st_as_sf(df, coords = c("lon", "lat"), crs = 4326)
+
+# Reproject, buffer, reproject back
+point_proj <- st_transform(point_sf, crs = 3338)
+buffer_dist_m <- 100 * 1609.34
+buffer_sf <- st_buffer(point_proj, dist = buffer_dist_m)
+buffer_sf_wgs84 <- st_transform(buffer_sf, crs = 4326)
+
+# Interactive map with both layers
+mapview(buffer_sf_wgs84, col.regions = "steelblue", alpha.regions = 0.3, layer.name = "100mi radius") +
+  mapview(point_sf, color = "black", col.regions = "black", layer.name = "Fairbanks, AK") +
+  mapview(access_pts, zcol = "access", layer.name = "access")
+  #mapview(helo_pts, color = "red", col.regions = "red", layer.name = "helo") +
+  #mapview(truck_pts, color = "yellow", col.regions = "yellow", layer.name = "truck")
+```
+
 
 # plot
 
 ```{r}
 #my_colors <- c("#E41A1C", "#377EB8") 
 
-mapview(cce_pts, col.regions = "#E41A1C")
+mapview(helo_pts, col.regions = "#E41A1C")
 ```
+
+
+```{r}
+access
+```
+
+```{r}
+
+#3. MAIN MAP
+# -------------------------------------------------------------------------
+# annotation_map_tile() pulls an OSM-style basemap (needs internet access
+# when you run this). Swap "cartolight" for "osm", "hotstyle", etc.
+ 
+# --- Basemap: Esri topo-style tiles (closer match to the reference PDF) ---
+# annotation_map_tile() (ggspatial/rosm) can only reach OSM-family servers,
+# which look different from your PDF's Esri-style terrain/refuge basemap.
+# maptiles can pull Esri tiles directly. Common providers to try:
+#   "Esri.WorldTopoMap"    - closest match to your PDF (terrain + labels)
+#   "Esri.NatGeoWorldMap"  - National Geographic style, also close
+#   "Esri.WorldStreetMap"  - plain street map, no terrain shading
+#   "CartoDB.PositronNoLabels" - light, minimal (previous default)
+ 
+access_colors <- c(  "Helicopter"   = "#FF7F00",
+  "Truck"   = "#FF91A4",
+  "Truck & ATVs"  = "#ff6666")
+
+# --- Fix for cut-off sites: compute combined extent of buffers + sites ---
+full_extent <- st_bbox(
+  st_union(st_geometry(hubs_buffer_sf_wgs84), st_geometry(access_pts))
+)
+ 
+# Pad the extent ~5% on each side so points aren't flush against the edge
+pad_x <- (full_extent["xmax"] - full_extent["xmin"]) * 0.05
+pad_y <- (full_extent["ymax"] - full_extent["ymin"]) * 0.05
+full_extent["xmin"] <- full_extent["xmin"] - pad_x
+full_extent["xmax"] <- full_extent["xmax"] + pad_x
+full_extent["ymin"] <- full_extent["ymin"] - pad_y
+full_extent["ymax"] <- full_extent["ymax"] + pad_y
+ 
+# Basemap tile fetch — bbox must be in the format maptiles expects (a bbox obj)
+basemap_tiles <- get_tiles(
+  x = st_as_sfc(full_extent) %>% st_set_crs(4326),
+  provider = "Esri.WorldTopoMap",
+  zoom = 7,          # increase for more detail (slower), decrease for coarser/faster
+  crop = TRUE
+)
+```
+
+```{r}
+( main_map <- ggplot() +
+  geom_spatraster_rgb(data = basemap_tiles) +
+  geom_sf(data = hubs_buffer_sf_wgs84, fill = "steelblue", alpha = 0.35,
+          color = "steelblue4", linewidth = 0.4) +
+  geom_sf(data = access_pts, aes(fill = access),
+          shape = 21, size = 2.2, color = "white", stroke = 0.3) +
+  scale_fill_manual(values = access_colors, name = "Access Type") +
+  geom_sf(data = hubs_sf, shape = 24, size = 4,
+          fill = "purple", color = "black") +
+  geom_sf_text(data = point_sf, aes(label = name),
+               nudge_y = 0.15, fontface = "bold", size = 3.5) +
+  annotation_north_arrow(location = "br", which_north = "true",
+                          style = north_arrow_fancy_orienteering(),
+                          height = unit(1.2, "cm"), width = unit(1.2, "cm")) +
+  annotation_scale(location = "bl", width_hint = 0.3, unit_category = "imperial") +
+  coord_sf(
+    xlim = c(full_extent["xmin"], full_extent["xmax"]),
+    ylim = c(full_extent["ymin"], full_extent["ymax"]),
+    expand = FALSE
+  ) +
+  theme_void() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA),
+    legend.position = c(0.98, 0.75),
+    legend.justification = c(1, 0.5),
+    legend.background = element_rect(fill = alpha("white", 0.85), color = "grey40")
+  )
+)
+
+
+
+```
+```{r}
+ggsave("../figures/2026-07-07_MapBasedAccessType100mileRadius.pdf", plot = main_map, 
+  width = 11, 
+  height = 14, 
+  units = "in",
+  dpi = 600,  
+  bg = "white" )
+```
+
+
+
+( main_map <- ggplot() +
+  annotation_map_tile(type = "cartolight", zoomin = -3) +
+  geom_sf(data = buffer_sf_wgs84, fill = "steelblue", alpha = 0.35,
+          color = "steelblue4", linewidth = 0.4) +
+  geom_sf(data = access_pts, aes(fill = access),
+          shape = 21, size = 2.2, color = "white", stroke = 0.3) +
+  scale_fill_manual(values = access_colors, name = "Access Type") +
+  geom_sf(data = point_sf, shape = 24, size = 4,
+          fill = "purple", color = "black") +
+  geom_sf_text(data = point_sf, aes(label = name),
+               nudge_y = 0.15, fontface = "bold", size = 3.5) +
+  annotation_north_arrow(location = "br", which_north = "true",
+                          style = north_arrow_fancy_orienteering(),
+                          height = unit(1.2, "cm"), width = unit(1.2, "cm")) +
+  annotation_scale(location = "bl", width_hint = 0.3, unit_category = "imperial") +
+  coord_sf(expand = FALSE) +
+  theme_void() +
+  theme(panel.border = element_rect(color = "black", fill = NA))
+)
+```{r}
+main_map
+```
+
+
+
+
 
 
 # Write to shapefile
@@ -147,3 +366,9 @@ st_write(cce_pts, "../outputs/shapefile/2026-06-04_CCE_Points.shp", driver="ESRI
 st_write(ak04_pts, "../outputs/shapefile/2026-06-04_AK_JFSP_Points.shp", driver="ESRI Shapefile")
 ```
 
+
+```{r eval=FALSE, include=FALSE}
+st_write(point_sf, "../outputs/shapefile/2026-07-07_Fairbanks.shp", driver="ESRI Shapefile")
+st_write(buffer_sf_wgs84, "../outputs/shapefile/2026-07-07_Fairbanks_100mileRadius.shp", driver="ESRI Shapefile")
+st_write(access_pts, "../outputs/shapefile/2026-07-07_Access_siteInfo.shp", driver="ESRI Shapefile")
+```

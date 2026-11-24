@@ -9,24 +9,25 @@ output: html_document
 rm(list=ls())
 ```
 
+
 # Overview
 
-**PROJECT**
-FCS-FireAlt project
+> **Project:** FCS-FireAlT
+>
+> **Purpose:** Spatialize FIRE ALT dataset
+>
+> **Inputs:** Data downloaded from Arctic Data Center https://arcticdata.io/catalog/view/doi%3A10.18739%2FA2RN3092P
 
-**PURPOSE OF SCRIPT**
-Spatialize FIRE ALT dataset
+>
+> **Output:** shapefile for EE
+>
+> **Status:** 🚧 in progress
+>
+> **Updated:** 2026-05-13
 
-**INPUTS**
-- Data downloaded from Arctic Data Center https://arcticdata.io/catalog/view/doi%3A10.18739%2FA2RN3092P
 
-**OUTPUTS**
-- shapefile for EE
 
-**CRITICAL DETAILS**
 
-**WORKFLOW SUMMARY**
-1. 
 
 
 # Packages
@@ -112,6 +113,29 @@ write_csv(burned_summary, "../outputs/summaries/2026-05-22_FireALT_burned_summar
   arrange(fireYr)
 )
   
+```
+
+```{r}
+paired_counts = alt_df %>% 
+   filter(distur == "burned") %>%
+  group_by(fireYr, year, permaExtent, cntryId, biome) %>%
+  summarize(n = n_distinct(paired)) %>%
+  arrange(fireYr) %>%
+  ungroup()
+paired_counts 
+sum(paired_counts$n)
+
+paired_counts %>%
+  group_by(biome) %>%
+  summarize(tot_pairs = sum(n)) 
+
+paired_counts %>%
+  group_by(permaExtent) %>%
+  summarize(tot_pairs = sum(n)) 
+
+paired_counts %>%
+  group_by(cntryId) %>%
+  summarize(tot_pairs = sum(n)) 
 ```
 
 # Create points shapefile

@@ -6,21 +6,52 @@ output: html_document
 ---
 
 
+# Overview
+
+Prep data to extract from CNA
 
 
 
 
-
+# Packages
 ```{r}
-library(AOI)
-library(climateR)
+library(tidyverse)
 library(sf)
-library(raster)
-library(rasterVis)
-library(dplyr)
-library(leaflet)
-library(leafem)
-library(RColorBrewer)
-library(stars)
+library(mapview)
 ```
 
+
+# Data
+
+```{r}
+pair_df = read_csv("../data/fire_alt/FireALTEstimatedPairsBurnedUnburned.csv")
+raw_df = read_csv("../data/fire_alt/FireAltEstimatedRawData.csv")
+```
+
+# View Data
+
+```{r}
+pair_df
+raw_df
+```
+
+```{r}
+( us_ca_cna = raw_df %>% 
+  filter(cntryId %in% c("US", "CA")) %>%
+  dplyr::select(lastNm, plotId, siteId, year, lat, lon, paired, distur, fireYr) %>%
+    distinct(lat, lon, .keep_all=TRUE) %>%
+    mutate(across(c(siteId, plotId), 
+                ~ str_remove_all(.x, " "), 
+                .names = "{.col}_clean")) %>%
+  rename(id1 = siteId_clean, id2 = plotId_clean, long = lon) %>%
+  mutate(elev = "") %>%
+    dplyr::select(id1, id2, lat, long, elev)
+  
+)
+```
+%>%
+  rename(id1 = lastNm, id2 = plotId, long = lon) %>%
+  mutate(elev = "")
+```{r}
+write_csv(us_ca_cna, "../outputs/2026-08-07_US_CA_4CNA.csv")
+```
